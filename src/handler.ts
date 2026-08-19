@@ -97,6 +97,14 @@ export class LoadBalancer extends DurableObject<Env> {
 		const targetUrl = `${BASE_URL}${pathname}${search}`;
 
 		try {
+			const authKey = this.env.HOME_ACCESS_KEY;
+			const authHeader = request.headers.get('Authorization');
+			const googHeader = request.headers.get('x-goog-api-key');
+			const token = authHeader?.replace(/^Bearer\s+/, '') ?? googHeader;
+			if (!authKey || token !== authKey) {
+				return new Response('Unauthorized', { status: 401, headers: fixCors({}).headers });
+			}
+
 			const headers = new Headers();
 			const apiKey = await this.getRandomApiKey();
 			if (!apiKey) {
