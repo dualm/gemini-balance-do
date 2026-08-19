@@ -3,6 +3,7 @@
 // Runtime types generated with workerd@1.20250803.0 2025-08-05
 declare namespace Cloudflare {
 	interface Env {
+		HOME_ACCESS_KEY: string;
 		LOAD_BALANCER: DurableObjectNamespace<import("./src/handler.ts").LoadBalancer>;
 	}
 }

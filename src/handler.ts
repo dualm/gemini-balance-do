@@ -1,4 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
+import { isAdminAuthenticated } from './auth';
 
 class HttpError extends Error {
 	status: number;
@@ -36,7 +37,7 @@ const makeHeaders = (apiKey: string, more?: Record<string, string>) => ({
 });
 
 /** A Durable Object's behavior is defined in an exported Javascript class */
-export class LoadBalancer extends DurableObject {
+export class LoadBalancer extends DurableObject<Env> {
 	/**
 	 * The constructor is invoked once upon creation of the Durable Object, i.e. the first call to
 	 * 	`DurableObjectStub::get` for a given identifier (no-op constructors can be omitted)
@@ -59,17 +60,25 @@ export class LoadBalancer extends DurableObject {
 		const pathname = url.pathname;
 
 		// Admin API routes
-		if (pathname === '/api/keys' && request.method === 'POST') {
-			return this.handleApiKeys(request);
-		}
-		if (pathname === '/api/keys' && request.method === 'GET') {
-			return this.getAllApiKeys();
-		}
-		if (pathname === '/api/keys' && request.method === 'DELETE') {
-			return this.handleDeleteApiKeys(request);
-		}
-		if (pathname === '/api/keys/check' && request.method === 'GET') {
-			return this.handleApiKeysCheck();
+		if (pathname === '/api/keys' || pathname === '/api/keys/check') {
+			if (!isAdminAuthenticated(request, this.env.HOME_ACCESS_KEY)) {
+				return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+					status: 401,
+					headers: fixCors({ headers: { 'Content-Type': 'application/json' } }).headers,
+				});
+			}
+			if (pathname === '/api/keys' && request.method === 'POST') {
+				return this.handleApiKeys(request);
+			}
+			if (pathname === '/api/keys' && request.method === 'GET') {
+				return this.getAllApiKeys();
+			}
+			if (pathname === '/api/keys' && request.method === 'DELETE') {
+				return this.handleDeleteApiKeys(request);
+			}
+			if (pathname === '/api/keys/check' && request.method === 'GET') {
+				return this.handleApiKeysCheck();
+			}
 		}
 
 		const search = url.search;
@@ -754,6 +763,13 @@ export class LoadBalancer extends DurableObject {
 	private async handleOpenAI(request: Request): Promise<Response> {
 		const url = new URL(request.url);
 		const pathname = url.pathname;
+
+		const authKey = this.env.HOME_ACCESS_KEY;
+		const authHeader = request.headers.get('Authorization');
+		const token = authHeader?.replace(/^Bearer\s+/, '');
+		if (!authKey || token !== authKey) {
+			return new Response('Unauthorized', { status: 401, headers: fixCors({}).headers });
+		}
 
 		const assert = (success: Boolean) => {
 			if (!success) {

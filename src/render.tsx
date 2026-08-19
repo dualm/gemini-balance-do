@@ -18,6 +18,13 @@ export const Render = () => {
 								密钥管理
 							</a>
 						</nav>
+						<div class="mt-8">
+							<label class="block text-sm mb-2">访问密钥</label>
+							<input id="access-key-input" type="password" class="w-full p-2 rounded bg-gray-700 text-white placeholder-gray-400" placeholder="输入 HOME_ACCESS_KEY" />
+							<button id="save-key-btn" class="mt-2 w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition">
+								保存密钥
+							</button>
+						</div>
 					</div>
 					<div class="flex-1 p-8">
 						<h2 class="text-3xl font-bold mb-6">Gemini API 密钥管理</h2>
@@ -76,6 +83,33 @@ export const Render = () => {
 					dangerouslySetInnerHTML={{
 						__html: `
 								document.addEventListener('DOMContentLoaded', () => {
+										const accessKeyInput = document.getElementById('access-key-input');
+										const saveKeyBtn = document.getElementById('save-key-btn');
+										const accessKey = localStorage.getItem('home_access_key') || '';
+										if (accessKeyInput && accessKey) {
+											accessKeyInput.value = accessKey;
+										}
+										const getAuthHeaders = (extra = {}) => {
+											const storedKey = localStorage.getItem('home_access_key') || '';
+											if (storedKey) {
+												return { ...extra, 'Authorization': \`Bearer \${storedKey}\` };
+											}
+											return extra;
+										};
+
+										if (saveKeyBtn) {
+											saveKeyBtn.addEventListener('click', () => {
+												const value = (accessKeyInput.value || '').trim();
+												if (!value) {
+													alert('请输入访问密钥。');
+													return;
+												}
+												localStorage.setItem('home_access_key', value);
+												alert('密钥已保存。');
+												fetchAndRenderKeys();
+											});
+										}
+
 										const addKeysForm = document.getElementById('add-keys-form');
 										const apiKeysTextarea = document.getElementById('api-keys');
 										const refreshKeysBtn = document.getElementById('refresh-keys-btn');
@@ -87,7 +121,7 @@ export const Render = () => {
 										const fetchAndRenderKeys = async () => {
 												keysTableBody.innerHTML = '<tr><td colspan="3" class="p-2 text-center">加载中...</td></tr>';
 												try {
-												  const response = await fetch('/api/keys');
+												  const response = await fetch('/api/keys', { headers: getAuthHeaders() });
 												  const { keys } = await response.json();
 												  keysTableBody.innerHTML = '';
 												  if (keys.length === 0) {
@@ -143,7 +177,7 @@ export const Render = () => {
 												try {
 												  const response = await fetch('/api/keys', {
 												    method: 'DELETE',
-												    headers: { 'Content-Type': 'application/json' },
+												    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
 												    body: JSON.stringify({ keys: selectedKeys }),
 												  });
 												  const result = await response.json();
@@ -172,7 +206,7 @@ export const Render = () => {
 											});
 
 											try {
-												const response = await fetch('/api/keys/check');
+												const response = await fetch('/api/keys/check', { headers: getAuthHeaders() });
 												const results = await response.json();
 												results.forEach(result => {
 													const row = keysTableBody.querySelector(\`tr[data-key="\${result.key}"]\`);
@@ -200,7 +234,7 @@ export const Render = () => {
 												try {
 												  const response = await fetch('/api/keys', {
 												    method: 'POST',
-												    headers: { 'Content-Type': 'application/json' },
+												    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
 												    body: JSON.stringify({ keys }),
 												  });
 												  const result = await response.json();
